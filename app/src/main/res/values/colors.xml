@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Single source of truth for the app's colour palette.
+
+      The brand colour is an **accent**, not a surface: it belongs on the
+      selected tab label, the tab indicator, the primary button and the tile —
+      not on the status bar, the tab strip background or any large area. Large
+      blue blocks fight with the content; blue-on-white keeps the accent where
+      the eye is already going.
+
+      A re-brand is a one-line change to brand_blue below.
+    -->
+    <color name="brand_blue">#0099FF</color>
+
+    <!-- Pressed / darker step and a very light tint for提示 backgrounds. -->
+    <color name="brand_blue_dark">#007ACC</color>
+    <color name="brand_blue_light">#E5F4FF</color>
+
+    <!-- Button pair colours. See MainActivity.renderRunState(). -->
+    <color name="button_idle">#E8EAED</color>
+    <color name="button_disabled_text">#9AA0A6</color>
+    <color name="button_on_accent">#FFFFFF</color>
+</resources>

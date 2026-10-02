@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Root layout.
+
+  Plain white ground. Earlier revisions set a photographic background here and
+  layered translucent white panels on top so the text stayed readable; that was
+  removed along with the image, so the panes below are now the only surfaces and
+  need no translucency of their own.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#FFFFFF">
+
+    <!--
+      Tab strip: white background, brand-coloured *text*.
+
+      The colour goes on the label and the indicator, never on the bar itself —
+      a solid blue strip reads as a toolbar and competes with the content,
+      whereas blue-on-white keeps the accent where the user is actually looking
+      and leaves the page looking light.
+    -->
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        app:tabIndicatorColor="@color/brand_blue"
+        app:tabSelectedTextColor="@color/brand_blue"
+        app:tabTextColor="#5F6368"
+        app:tabMode="fixed"
+        app:tabGravity="fill"
+        app:tabIndicatorHeight="3dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1A000000" />
+
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- ============================ Tab 1: 主页 ============================ -->
+        <LinearLayout
+            android:id="@+id/pageHome"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <!--
+              Terminal pane.
+
+              Layout notes, all of which exist to keep the ASCII banner on a
+              single grid:
+
+              1. `includeFontPadding=false` plus a fixed `lineSpacingExtra=0`
+                 and `lineSpacingMultiplier=1.0` removes the extra leading
+                 Android adds around each line by default. That padding differs
+                 per line depending on the tallest glyph in it, so lines with
+                 tall characters drifted apart from lines without.
+              2. `textSize` is 9sp and the pane scrolls horizontally. The banner
+                 is 53 columns and the longest log line is 83 characters, both
+                 wider than a phone in portrait; without horizontal scrolling
+                 the right edge would simply be clipped.
+              3. width is `wrap_content` inside the HorizontalScrollView so the
+                 text lays out at its natural width instead of being wrapped.
+              4. `fontFamily="monospace"` with no letterSpacing keeps every
+                 glyph in one cell. Characters the monospace font does not
+                 cover are substituted before they reach the view — see
+                 MainActivity.normalizeForMonospace().
+            -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="终端输出"
+                android:textColor="#5F6368"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:paddingBottom="6dp" />
+
+            <HorizontalScrollView
+                android:id="@+id/logHScroll"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:background="#FFFFFF"
+                android:scrollbars="horizontal"
+                android:fillViewport="true">
+
+                <ScrollView
+                    android:id="@+id/logScroll"
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:padding="8dp"
+                    android:scrollbars="vertical">
+
+                    <TextView
+                        android:id="@+id/logView"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
+                        android:includeFontPadding="false"
+                        android:letterSpacing="0"
+                        android:lineSpacingExtra="0dp"
+                        android:lineSpacingMultiplier="1.0"
+                        android:textColor="#1A1A1A"
+                        android:textSize="9sp"
+                        android:textIsSelectable="true"
+                        android:text="" />
+                </ScrollView>
+            </HorizontalScrollView>
+
+            <!-- Two buttons side by side: start on the left, stop on the
+                 right. Both are enabled/disabled in lockstep with the script
+                 state so the wrong one can never be fired. -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/startButton"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="6dp"
+                    android:text="开始"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/brand_blue"
+                    android:textColor="#FFFFFF" />
+
+                <Button
+                    android:id="@+id/stopButton"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="6dp"
+                    android:text="关闭"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#E8EAED"
+                    android:textColor="#202124" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ======================= Tab 2: 密码本 ======================= -->
+        <LinearLayout
+            android:id="@+id/pageFiles"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <!--
+              Header row: title on the left, the two icon actions pinned to the
+              right edge.
+
+              The actions live here rather than beside the 刷新 button at the
+              bottom because they act on the *password book as a whole* —
+              export it elsewhere, or wipe it — whereas 刷新 only re-reads it.
+              Putting the pair up top also keeps them out of thumb-reach of
+              the refresh button, so a mis-tap cannot turn "reload" into
+              "delete".
+
+              Both are borderless ImageButtons (`?attr/selectableItemBackgroundBorderless`)
+              so they read as icons, not as chrome, and each carries a
+              contentDescription because an icon-only control has no visible
+              label for a screen reader.
+            -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="密码本"
+                    android:textColor="#202124"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <!-- Save: opens the system file picker, pre-named after the
+                     password book itself. -->
+                <ImageButton
+                    android:id="@+id/saveButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="保存密码本到文件"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_save" />
+
+                <!-- Delete: confirms first, because it is irreversible. -->
+                <ImageButton
+                    android:id="@+id/deleteButton"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="删除当前保存的密码"
+                    android:padding="8dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_delete" />
+            </LinearLayout>
+
+            <!--
+              No permanent path header here on purpose. The empty state and the
+              error states each print the path themselves, so a standing
+              "路径: …" line above the pane would just repeat it — and it was
+              noise once real credentials were showing. The view is kept (set
+              to GONE in code) so the layout id stays stable.
+            -->
+            <TextView
+                android:id="@+id/filePathLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingTop="4dp"
+                android:textColor="#5F6368"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/fileStatus"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="#FDECEA"
+                android:padding="14dp"
+                android:textColor="#C5221F"
+                android:textSize="13sp"
+                android:lineSpacingExtra="3dp"
+                android:fontFamily="monospace"
+                android:visibility="gone" />
+
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:layout_marginTop="10dp"
+                android:background="#FFFFFF"
+                android:padding="10dp">
+
+                <TextView
+                    android:id="@+id/fileContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textColor="#202124"
+                    android:textSize="12sp"
+                    android:textIsSelectable="true" />
+            </ScrollView>
+
+            <Button
+                android:id="@+id/refreshButton"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:text="刷新"
+                android:backgroundTint="#E8EAED"
+                android:textColor="#202124" />
+        </LinearLayout>
+
+        <!-- ======================= Tab 3: 关于 ======================= -->
+        <LinearLayout
+            android:id="@+id/pageAbout"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="12dp"
+            android:visibility="gone">
+
+            <!--
+              The card is a plain Surface-like panel, not a MaterialCardView:
+              this screen is static, so a card would only add elevation and
+              rounded corners without earning either.
+            -->
+
+            <!-- The avatar sits squarely in the middle of the screen width.
+                 It is a circular PNG on a transparent canvas, so no extra
+                 clipping is needed — the corners are already empty. -->
+            <ImageView
+                android:id="@+id/aboutAvatar"
+                android:layout_width="160dp"
+                android:layout_height="160dp"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="28dp"
+                android:contentDescription="作者头像"
+                android:scaleType="fitCenter"
+                android:src="@drawable/about_avatar" />
+
+            <!-- Name, centred under the avatar. -->
+            <TextView
+                android:id="@+id/aboutName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_horizontal"
+                android:text="天蓝色的小牛"
+                android:textColor="#202124"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="22dp"
+                android:background="#1A000000" />
+
+            <!--
+              Homepage link, left-aligned like the rest of the body copy.
+
+              The label and the link are *separate* TextViews inside one
+              left-aligned row. That is what makes "我的个人主页:" inert and
+              "github.com/tianlansedexiaoniu" the only tappable thing — put
+              them in a single TextView and the whole line, colon included,
+              would become the click target.
+            -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:gravity="start|center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="我的个人主页:"
+                    android:textColor="#202124"
+                    android:textSize="14sp" />
+
+                <TextView
+                    android:id="@+id/aboutLink"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="github.com/tianlansedexiaoniu"
+                    android:textColor="@color/brand_blue"
+                    android:textSize="14sp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackground" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

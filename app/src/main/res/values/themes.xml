@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OneShot" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="colorPrimary">@color/brand_blue</item>
+        <item name="colorPrimaryVariant">@color/brand_blue_dark</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">@color/brand_blue</item>
+        <item name="colorSurface">#FFFFFF</item>
+        <!--
+          The brand colour is an *accent*, not a surface.
+
+          It is deliberately kept off the system bars: a blue status bar turns
+          the top of the screen into a coloured block that fights with the
+          content underneath. White bars with dark icons leave the blue to do
+          the one job it is good at — drawing the eye to the selected tab and
+          the primary button.
+        -->
+        <item name="android:statusBarColor">#FFFFFF</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:textColorPrimary">#1A1A1A</item>
+        <item name="android:textColorSecondary">#5F6368</item>
+
+        <!--
+          Long-press tooltips.
+
+          Android pops a black rounded tooltip whenever a view that carries
+          text or a contentDescription is long-pressed. Nothing useful lives in
+          it here, and it was appearing over the buttons. Setting the tooltip
+          text to null suppresses it at the theme level, so no individual view
+          needs touching.
+        -->
+        <item name="android:tooltipText">@null</item>
+    </style>
+</resources>
