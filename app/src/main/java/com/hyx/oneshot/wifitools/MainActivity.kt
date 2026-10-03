@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
     private lateinit var plan1Button: Button
     private lateinit var plan2Button: Button
     private lateinit var repeatCheck: CheckBox
+    private lateinit var accuracyCheck: CheckBox
 
     
     private var selectedPlan: ScriptRunner.Mode = ScriptRunner.Mode.FULL
@@ -77,11 +78,17 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
     @Volatile
     private var tailing = false
 
+    
     companion object {
         private const val REQ_PERMS = 1001
 
         
         private const val TAIL_INTERVAL_MS = 700L
+
+        
+        
+        
+        private const val COMPACT_BAR_MAX_WIDTH_DP = 400
 
         
         private const val COLOR_WARN_BG = 0xFFFDECEA.toInt()
@@ -101,6 +108,9 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
 
         
         private const val KEY_REPEAT_MODE = "repeat_mode"
+
+        
+        private const val KEY_ACCURACY = "accuracy_mode"
 
         
         private const val TILE_HINT =
@@ -138,6 +148,7 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         plan1Button = findViewById(R.id.plan1Button)
         plan2Button = findViewById(R.id.plan2Button)
         repeatCheck = findViewById(R.id.repeatCheck)
+        accuracyCheck = findViewById(R.id.accuracyCheck)
 
         
         
@@ -155,10 +166,11 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         repeatCheck.isChecked = loadRepeatMode()
         repeatCheck.setOnCheckedChangeListener { _, checked ->
             saveRepeatMode(checked)
-            appendLog(
-                if (checked) "[*] 重复模式：已开启 — 脚本每次结束都会自动重新运行"
-                else "[*] 重复模式：已关闭"
-            )
+        }
+
+        accuracyCheck.isChecked = loadAccuracy()
+        accuracyCheck.setOnCheckedChangeListener { _, checked ->
+            saveAccuracy(checked)
         }
 
         val tabs = findViewById<TabLayout>(R.id.tabLayout)
@@ -426,7 +438,8 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
             if (lines.isEmpty()) return
 
             val shown = logView.text?.toString().orEmpty()
-            val fresh = lines.filter { !shown.contains(it) }
+            val shownLines = shown.split('\n').toHashSet()
+            val fresh = lines.filter { it !in shownLines }
             if (fresh.isEmpty()) return
 
             if (notice) appendLog("脚本已停止运行")
@@ -609,7 +622,8 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(20), dp(22), dp(8))
+            val padH = if (screenWidthDp() < COMPACT_BAR_MAX_WIDTH_DP) 16 else 22
+            setPadding(dp(padH), dp(20), dp(padH), dp(8))
             background = GradientDrawable().apply {
                 cornerRadius = dp(14).toFloat()
                 setColor(COLOR_WARN_BG)
@@ -675,6 +689,7 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.setCanceledOnTouchOutside(true)
         dialog.show()
+        tuneDialogForScreen(dialog)
     }
 
     
@@ -710,6 +725,26 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         (value * resources.displayMetrics.density).toInt()
 
     
+    
+    
+    
+    private fun tuneDialogForScreen(dialog: AlertDialog) {
+        val dm = resources.displayMetrics
+        val widthDp = (dm.widthPixels / dm.density).toInt()
+
+        
+        val contentWidthDp = (widthDp - 64).coerceAtMost(320).coerceAtLeast(220)
+        dialog.window?.setLayout(dp(contentWidthDp), android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
+    }
+
+    
+    private fun screenWidthDp(): Int {
+        val dm = resources.displayMetrics
+        val w = if (dm.widthPixels > dm.heightPixels) dm.heightPixels else dm.widthPixels
+        return (w / dm.density).toInt()
+    }
+
+    
 
     
     private fun loadSelectedPlan(): ScriptRunner.Mode {
@@ -729,6 +764,18 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         getSharedPreferences(PREFS_UI, MODE_PRIVATE)
             .edit()
             .putBoolean(KEY_REPEAT_MODE, enabled)
+            .apply()
+    }
+
+    
+    private fun loadAccuracy(): Boolean =
+        getSharedPreferences(PREFS_UI, MODE_PRIVATE)
+            .getBoolean(KEY_ACCURACY, false)
+
+    private fun saveAccuracy(enabled: Boolean) {
+        getSharedPreferences(PREFS_UI, MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_ACCURACY, enabled)
             .apply()
     }
 
@@ -781,7 +828,8 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
 
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(20), dp(22), dp(8))
+            val padH = if (screenWidthDp() < COMPACT_BAR_MAX_WIDTH_DP) 16 else 22
+            setPadding(dp(padH), dp(20), dp(padH), dp(8))
             background = GradientDrawable().apply {
                 cornerRadius = dp(14).toFloat()
                 setColor(android.graphics.Color.WHITE)
@@ -882,6 +930,7 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         }
 
         dialog.show()
+        tuneDialogForScreen(dialog)
     }
 
     
@@ -947,6 +996,7 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
             .setAction(RunService.ACTION_START)
             .putExtra(RunService.EXTRA_MODE, selectedPlan.name)
             .putExtra(RunService.EXTRA_REPEAT, repeatCheck.isChecked)
+            .putExtra(RunService.EXTRA_LONG_TIMEOUT, accuracyCheck.isChecked)
         ContextCompat.startForegroundService(this, intent)
     }
 
@@ -1036,6 +1086,7 @@ class MainActivity : AppCompatActivity(), RunService.Listener {
         logScroll.post { logScroll.fullScroll(View.FOCUS_DOWN) }
     }
 
+    
     
     private fun normalizeForMonospace(line: String): String {
         if (line.isEmpty()) return line

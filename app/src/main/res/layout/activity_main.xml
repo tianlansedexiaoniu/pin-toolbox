@@ -47,40 +47,65 @@
                 android:orientation="horizontal"
                 android:paddingBottom="6dp">
 
-                <TextView
+                
+                <LinearLayout
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="终端输出"
-                    android:textColor="#5F6368"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/accuracyLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:text="确保准确:"
+                        android:textColor="#5F6368"
+                        android:textSize="12sp" />
+
+                    <CheckBox
+                        android:id="@+id/accuracyCheck"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="2dp"
+                        android:buttonTint="@color/brand_blue"
+                        android:gravity="center_vertical" />
+
+                    <TextView
+                        android:id="@+id/repeatLabel"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:layout_marginStart="6dp"
+                        android:gravity="center_vertical"
+                        android:singleLine="true"
+                        android:text="重复模式:"
+                        android:textColor="#5F6368"
+                        android:textSize="12sp" />
+
+                    <CheckBox
+                        android:id="@+id/repeatCheck"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:minWidth="0dp"
+                        android:minHeight="0dp"
+                        android:paddingStart="4dp"
+                        android:paddingEnd="2dp"
+                        android:buttonTint="@color/brand_blue"
+                        android:gravity="center_vertical" />
+                </LinearLayout>
 
                 
                 <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:gravity="center_vertical"
-                    android:text="重复模式"
-                    android:textColor="#5F6368"
-                    android:textSize="12sp" />
-
-                <CheckBox
-                    android:id="@+id/repeatCheck"
-                    android:layout_width="wrap_content"
-                    android:layout_height="32dp"
-                    android:minWidth="0dp"
-                    android:minHeight="0dp"
-                    android:paddingStart="4dp"
-                    android:paddingEnd="2dp"
-                    android:buttonTint="@color/brand_blue"
-                    android:gravity="center_vertical" />
-
-                <TextView
+                    android:id="@+id/releaseLabel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
                     android:layout_marginEnd="6dp"
+                    android:singleLine="true"
                     android:text="解除占用"
                     android:textColor="#5F6368"
                     android:textSize="12sp" />

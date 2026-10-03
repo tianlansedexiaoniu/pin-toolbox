@@ -1626,7 +1626,7 @@ def _connectAndroid(essid: str, psk: str) -> bool:
     return False
 
 PIXIE_DUST    = True
-PIXIE_FORCE   = False
+PIXIE_FORCE   = True
 SHOW_PIXIE    = False
 VERBOSE       = False
 IFACE_DOWN    = False
@@ -1801,6 +1801,7 @@ def main():
 
     connect_only = '-c' in sys.argv[1:]
     mode2 = '-m' in sys.argv[1:]
+    long_timeout = '--long-timeout' in sys.argv[1:]
 
     
     
@@ -1808,6 +1809,11 @@ def main():
     
     global MODE2
     MODE2 = mode2
+
+    global WPS_STATE_TIMEOUT, WPS_ATTEMPT_TIMEOUT
+    if long_timeout:
+        WPS_STATE_TIMEOUT = 30
+        WPS_ATTEMPT_TIMEOUT = 30
 
     checkRequirements()
     setupDirectories()
@@ -1934,11 +1940,8 @@ def main():
         
         
         
-        if wifi_taken_down and androidWifiManaged():
+        if androidWifiManaged():
             setupAndroidWifi(android_network, enable=True)
-
-        if IFACE_DOWN:
-            ifaceCtl(interface, action='down')
 
         if MTK_WIFI and wmt_wifi_device is not None:
             wmt_wifi_device.write_text('0', encoding='utf-8')

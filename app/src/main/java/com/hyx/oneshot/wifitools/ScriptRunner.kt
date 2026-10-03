@@ -29,7 +29,8 @@ object ScriptRunner {
         context: Context,
         useRoot: Boolean,
         mode: Mode = Mode.FULL,
-        connectOnly: Boolean = false
+        connectOnly: Boolean = false,
+        longTimeout: Boolean = false
     ): List<String> {
         val appDir = context.filesDir.absolutePath
         val pythonRoot = "${appDir}/python"
@@ -48,6 +49,7 @@ object ScriptRunner {
         val modeArg = buildString {
             if (mode.arg != null) append(" ").append(mode.arg)
             if (connectOnly) append(" -c")
+            if (longTimeout) append(" --long-timeout")
         }
 
         

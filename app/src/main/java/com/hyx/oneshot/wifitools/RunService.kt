@@ -42,6 +42,9 @@ class RunService : Service() {
         const val EXTRA_REPEAT = "com.hyx.oneshot.wifitools.REPEAT"
 
         
+        const val EXTRA_LONG_TIMEOUT = "com.hyx.oneshot.wifitools.LONG_TIMEOUT"
+
+        
         private const val REPEAT_DELAY_MS = 1500L
 
         private const val CHANNEL_ID = "ose_run_channel"
@@ -109,6 +112,9 @@ class RunService : Service() {
     @Volatile
     private var lastConnectOnly: Boolean = false
 
+    @Volatile
+    private var longTimeout: Boolean = false
+
     
     @Volatile
     private var runId: String? = null
@@ -142,14 +148,18 @@ class RunService : Service() {
                     repeatMode = intent.getBooleanExtra(EXTRA_REPEAT, false)
                 }
 
+                if (intent?.hasExtra(EXTRA_LONG_TIMEOUT) == true) {
+                    longTimeout = intent.getBooleanExtra(EXTRA_LONG_TIMEOUT, false)
+                }
+
                 runId = intent?.getStringExtra(EXTRA_RUN_ID)
-                startScript(mode, connectOnly = connectOnly)
+                startScript(mode, connectOnly = connectOnly, longTimeout = longTimeout)
             }
         }
         return START_NOT_STICKY
     }
 
-    private fun startScript(mode: ScriptRunner.Mode, connectOnly: Boolean = false) {
+    private fun startScript(mode: ScriptRunner.Mode, connectOnly: Boolean = false, longTimeout: Boolean = false) {
         if (isRunning) {
             emit("[*] 脚本已在运行。")
             return
@@ -161,9 +171,10 @@ class RunService : Service() {
         
         lastMode = mode
         lastConnectOnly = connectOnly
+        this.longTimeout = longTimeout
 
         val useRoot = ScriptRunner.hasRoot()
-        val command = ScriptRunner.buildCommand(this, useRoot, mode, connectOnly)
+        val command = ScriptRunner.buildCommand(this, useRoot, mode, connectOnly, longTimeout)
 
         
         
@@ -171,13 +182,16 @@ class RunService : Service() {
         resetLogFile()
 
         emit("[*] root 权限：" + if (useRoot) "可用（以 root 身份运行）" else "不可用（以应用身份运行）")
-        emit(
-            if (connectOnly) "[*] 模式：破解并连接（扫描 → 破解信号最强的可破解 WiFi → 立即连接，读变量为兜底）"
-            else "[*] 模式：完整流程（扫描 + 攻击，不自动连接）"
-        )
+        if (connectOnly) {
+            emit("[*] 模式：破解并连接（扫描 → 破解信号最强的可破解 WiFi → 立即连接，读变量为兜底）")
+        }
 
         if (repeatMode) {
             emit("[*] 重复模式：已开启 — 脚本每次结束都会自动重新运行（点「关闭」停止）")
+        }
+
+        if (longTimeout) {
+            emit("[*] 确保准确：WPS 超时已从 10s 延长至 30s")
         }
 
         
@@ -429,7 +443,7 @@ class RunService : Service() {
                 return@postDelayed
             }
             runId = nextId
-            startScript(lastMode, connectOnly = lastConnectOnly)
+            startScript(lastMode, connectOnly = lastConnectOnly, longTimeout = longTimeout)
         }, REPEAT_DELAY_MS)
     }
 
