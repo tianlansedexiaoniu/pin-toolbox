@@ -18,34 +18,6 @@ import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-/**
- * Owns the lifetime of the target script.
- *
- * Responsibilities, in order of importance:
- *   1. Start the interpreter as a child process and stream stdout+stderr to the UI.
- *   2. Keep a bounded copy of that output, so an activity that was not attached
- *      at the time can still show what happened.
- *   3. Run a watchdog every 5 s that checks whether that process is still alive.
- *   4. As soon as it is gone — clean exit, error exit or crash — publish the
- *      fact so the UI, the tile and any later-launched activity agree.
- *
- * Running this in a foreground service rather than in the activity means the
- * script survives the screen being turned off, and Android will not silently
- * freeze the process group mid-scan.
- *
- * ### Two delivery paths, because there are two processes
- *
- * The activity *usually* lives in this process and receives lines through the
- * in-memory [listener]. But an activity launched by tapping the notification
- * can, on some ROMs, end up in a freshly forked process — in which case there
- * is no listener to call and the terminal would sit empty while the script
- * happily ran in the other process. That is the bug this revision fixes.
- *
- * The fallback is the shared log file: every line is appended to
- * [LOG_FILE_NAME] as well as handed to the listener, and a client that finds
- * itself out-of-process tails that file. Both paths are cheap; the file only
- * ever holds the tail of the run.
- */
 class RunService : Service() {
 
     interface Listener {
@@ -57,31 +29,29 @@ class RunService : Service() {
         const val ACTION_START = "com.hyx.oneshot.wifitools.START"
         const val ACTION_STOP = "com.hyx.oneshot.wifitools.STOP"
 
-        /**
-         * Extra carrying a [ScriptRunner.Mode] name. Both entry points — the
-         * quick-settings tile and the in-app button — start the full workflow.
-         */
+        
         const val EXTRA_MODE = "com.hyx.oneshot.wifitools.MODE"
 
-        /**
-         * Extra carrying the run id minted by the caller (the tile) so the
-         * activity can recognise the run it is displaying. Absent when the
-         * in-app button starts the run; the id is minted here in that case.
-         */
+        
         const val EXTRA_RUN_ID = "com.hyx.oneshot.wifitools.RUN_ID"
+
+        
+        const val EXTRA_CONNECT = "com.hyx.oneshot.wifitools.CONNECT"
+
+        
+        const val EXTRA_REPEAT = "com.hyx.oneshot.wifitools.REPEAT"
+
+        
+        private const val REPEAT_DELAY_MS = 1500L
 
         private const val CHANNEL_ID = "ose_run_channel"
         private const val NOTIFICATION_ID = 42
         private const val WATCHDOG_INTERVAL_SECONDS = 5L
 
-        /**
-         * File the live transcript is mirrored into, for readers that are not
-         * in this process. Lives in filesDir so both the app uid and root can
-         * read it.
-         */
+        
         const val LOG_FILE_NAME = "run_output.log"
 
-        /** Kept deliberately generous: a full scan is chatty. */
+        
         private const val LOG_FILE_MAX_BYTES = 512 * 1024L
 
         @Volatile
@@ -91,28 +61,21 @@ class RunService : Service() {
         var isRunning: Boolean = false
             private set
 
-        /**
-         * Mode of the run currently in flight (or the last one to finish).
-         * The tile reads this to label itself without having to re-derive it.
-         */
+        
         @Volatile
         var currentMode: ScriptRunner.Mode = ScriptRunner.Mode.FULL
             private set
 
-        /** Identity of the run in flight, or the last one to have run. */
+        
         @Volatile
         var currentRunId: String? = null
             private set
 
-        /**
-         * Notified whenever `isRunning` flips, so the quick-settings tile can
-         * keep its active state in sync with the watchdog's view of the process
-         * — including runs started from the in-app button.
-         */
+        
         @Volatile
         var stateListener: (() -> Unit)? = null
 
-        /** The shared state file, for callers that only want the answer. */
+        
         fun isRunningNow(context: Context): Boolean = RunStateStore.isRunningNow(context)
 
         fun logFile(context: Context) =
@@ -129,9 +92,24 @@ class RunService : Service() {
     private var process: Process? = null
     private val stopper = AtomicBoolean(false)
     private var watchdog: ScheduledExecutorService? = null
-    private val streamPool = Executors.newCachedThreadPool()
 
-    /** The run id this service instance owns; see [RunStateStore]. */
+    
+    @Volatile
+    private var streamPool: java.util.concurrent.ExecutorService =
+        Executors.newCachedThreadPool()
+
+    
+    @Volatile
+    private var repeatMode: Boolean = false
+
+    
+    @Volatile
+    private var lastMode: ScriptRunner.Mode = ScriptRunner.Mode.FULL
+
+    @Volatile
+    private var lastConnectOnly: Boolean = false
+
+    
     @Volatile
     private var runId: String? = null
 
@@ -140,6 +118,10 @@ class RunService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
+                
+                
+                
+                repeatMode = false
                 stopScript()
                 return START_NOT_STICKY
             }
@@ -149,14 +131,25 @@ class RunService : Service() {
                         runCatching { ScriptRunner.Mode.valueOf(name) }.getOrNull()
                     }
                     ?: ScriptRunner.Mode.FULL
+
+                val connectOnly =
+                    intent?.getBooleanExtra(EXTRA_CONNECT, false) == true
+
+                
+                
+                
+                if (intent?.hasExtra(EXTRA_REPEAT) == true) {
+                    repeatMode = intent.getBooleanExtra(EXTRA_REPEAT, false)
+                }
+
                 runId = intent?.getStringExtra(EXTRA_RUN_ID)
-                startScript(mode)
+                startScript(mode, connectOnly = connectOnly)
             }
         }
         return START_NOT_STICKY
     }
 
-    private fun startScript(mode: ScriptRunner.Mode) {
+    private fun startScript(mode: ScriptRunner.Mode, connectOnly: Boolean = false) {
         if (isRunning) {
             emit("[*] 脚本已在运行。")
             return
@@ -165,31 +158,75 @@ class RunService : Service() {
         startForegroundCompat()
         currentMode = mode
 
-        val useRoot = ScriptRunner.hasRoot()
-        val command = ScriptRunner.buildCommand(this, useRoot, mode)
+        
+        lastMode = mode
+        lastConnectOnly = connectOnly
 
-        // A fresh transcript: the file is truncated here rather than after the
-        // run, so a reader that starts tailing it at any moment only ever sees
-        // this run's output.
+        val useRoot = ScriptRunner.hasRoot()
+        val command = ScriptRunner.buildCommand(this, useRoot, mode, connectOnly)
+
+        
+        
+        
         resetLogFile()
 
         emit("[*] root 权限：" + if (useRoot) "可用（以 root 身份运行）" else "不可用（以应用身份运行）")
-        emit("[*] 模式：完整流程（扫描 + 攻击，不自动连接）")
+        emit(
+            if (connectOnly) "[*] 模式：破解并连接（扫描 → 破解信号最强的可破解 WiFi → 立即连接，读变量为兜底）"
+            else "[*] 模式：完整流程（扫描 + 攻击，不自动连接）"
+        )
+
+        if (repeatMode) {
+            emit("[*] 重复模式：已开启 — 脚本每次结束都会自动重新运行（点「关闭」停止）")
+        }
+
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        if (mode == ScriptRunner.Mode.MODE2) {
+            when (val result = WifiDisconnector.disconnect(this)) {
+                is WifiDisconnector.Result.Disconnected -> {
+                    emit("[*] 已断开当前 WiFi 连接（方式：${result.level}，WiFi 开关保持开启）")
+                    if (result.blipped) {
+                        emit("[*] 注：本次为断开连接重启过一次射频，WiFi 开关已自动重新打开")
+                    }
+                }
+                is WifiDisconnector.Result.AlreadyFree ->
+                    emit("[*] 当前未连接任何 WiFi，无需断开")
+                is WifiDisconnector.Result.NoRoot -> {
+                    emit("[!] 方案2 需要 root 权限才能断开 WiFi 连接。")
+                    abortBeforeStart()
+                    return
+                }
+                is WifiDisconnector.Result.Failed -> {
+                    emit("[!] 无法断开当前 WiFi 连接：${result.detail}")
+                    emit("[!] 请在系统设置里手动断开当前 WiFi（不必关闭 WiFi 开关），然后重试。")
+                    abortBeforeStart()
+                    return
+                }
+            }
+        }
 
         try {
             val builder = ProcessBuilder(command)
             builder.directory(PythonInstaller.scriptDir(this))
             builder.redirectErrorStream(true)
 
-            // Authoritative environment. Setting these on the builder (rather
-            // than relying on `VAR=x` prefixes inside the su command string)
-            // is what makes them survive a root manager that rewrites the
-            // command it is handed. See ScriptRunner.buildEnvironment().
+            
+            
+            
+            
             builder.environment().putAll(ScriptRunner.buildEnvironment(this))
 
-            // Logged so that if a path problem shows up again on a device we can
-            // see immediately which values actually reached the child, instead
-            // of inferring it from the Python traceback.
+            
+            
+            
             emit("[*] HOME=${builder.environment()["HOME"]}")
             emit("[*] TMPDIR=${builder.environment()["TMPDIR"]}")
 
@@ -199,14 +236,14 @@ class RunService : Service() {
             currentRunId = runId
             stopper.set(false)
 
-            // Recorded so a tile bound in a *new* process (after this one is
-            // killed) still knows a run is in flight, and so the activity can
-            // tell *which* run it is. See RunStateStore.
+            
+            
+            
             RunStateStore.markRunning(
                 this, mode, processPid(proc), runId
             )
-            // Read back: markRunning mints an id when none was supplied, and
-            // this instance has to report the same one the store now holds.
+            
+            
             runId = RunStateStore.snapshot(this).runId
             currentRunId = runId
 
@@ -218,24 +255,29 @@ class RunService : Service() {
         }
     }
 
-    /**
-     * `Process.pid()` is API 26+ and this app's minSdk is 24, so on older
-     * devices the PID is simply not available. That degrades gracefully:
-     * [RunStateStore] treats "no PID" as "cannot verify", which keeps the run
-     * marked live rather than clearing it.
-     */
+    
+    private fun abortBeforeStart() {
+        RunStateStore.clear(this)
+        shutDownHelpers()
+
+        listener?.onScriptStopped(-1)
+
+        stopSelfSafely()
+    }
+
+    
     private fun processPid(proc: Process): Int = runCatching {
         val m = proc.javaClass.getMethod("pid")
         (m.invoke(proc) as? Int) ?: -1
     }.getOrDefault(-1)
 
-    /** Streams the merged stdout/stderr of the child into the log view. */
+    
     private fun pumpOutput(proc: Process) {
         streamPool.execute {
             try {
                 BufferedReader(InputStreamReader(proc.inputStream, Charsets.UTF_8)).use { reader ->
-                    // ANSI colour codes are meaningless in a TextView and would
-                    // otherwise show up as literal escape noise.
+                    
+                    
                     val ansi = Regex("\u001B\\[[0-9;]*[A-Za-z]")
                     while (true) {
                         val line = reader.readLine() ?: break
@@ -252,10 +294,7 @@ class RunService : Service() {
         }
     }
 
-    /**
-     * The 5-second liveness watch. `Process.isAlive` is authoritative and also
-     * catches the case where the shell died but the pipe has not flushed yet.
-     */
+    
     private fun startWatchdog(proc: Process) {
         val executor = Executors.newSingleThreadScheduledExecutor()
         watchdog = executor
@@ -273,13 +312,32 @@ class RunService : Service() {
                     finishRun(code)
                 }
             } catch (_: Exception) {
-                // A watchdog must never crash the service.
+                
             }
         }, WATCHDOG_INTERVAL_SECONDS, WATCHDOG_INTERVAL_SECONDS, TimeUnit.SECONDS)
     }
 
+    
     private fun stopScript() {
         stopper.set(true)
+
+        
+        val pid = RunStateStore.snapshot(this).pid
+        if (pid > 0) {
+            runCatching {
+                ProcessBuilder(
+                    "su", "-c",
+                    
+                    
+                    
+                    "kill -TERM -$pid 2>/dev/null; kill -TERM $pid 2>/dev/null; " +
+                        "sleep 1; kill -KILL -$pid 2>/dev/null; kill -KILL $pid 2>/dev/null; true"
+                ).redirectErrorStream(true).start().waitFor()
+            }.onFailure {  }
+        }
+
+        
+        
         try {
             process?.let { proc ->
                 if (proc.isAlive) {
@@ -291,30 +349,91 @@ class RunService : Service() {
             }
         } catch (_: Exception) {
         }
+
+        process = null
         finishRun(-9)
     }
 
-    /** Idempotent: only the first caller actually flips the UI back. */
+    
     private fun finishRun(exitCode: Int) {
         if (!isRunning) {
             RunStateStore.clear(this)
             shutDownHelpers()
+
+            
+            
+            
             stopSelfSafely()
             return
         }
 
         setRunning(false)
         process = null
-        // Cleared here rather than in onDestroy: this is the one moment we know
-        // for certain the script is gone, so the tile will not stay lit for it.
+
+        
+        
+        
+        
+        
+        
+        val willRepeat = repeatMode && !stopper.get()
+
+        if (willRepeat) {
+            
+            
+            
+            
+            
+            RunStateStore.clear(this)
+
+            
+            
+            
+            
+            shutDownHelpers()
+
+            scheduleRepeat(exitCode)
+            return
+        }
+
+        
+        
         RunStateStore.clear(this)
         shutDownHelpers()
 
         listener?.onScriptStopped(exitCode)
-
         stopSelfSafely()
     }
 
+    
+    private fun scheduleRepeat(exitCode: Int) {
+        val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        val seconds = REPEAT_DELAY_MS / 1000.0
+        emit("[*] 重复模式：脚本已结束（退出码 $exitCode），${"%.1f".format(seconds)}s 后重新启动…")
+
+        
+        
+        
+        
+        
+        
+        val nextId = RunStateStore.markStarting(this, lastMode)
+
+        handler.postDelayed({
+            
+            
+            
+            if (!repeatMode || stopper.get()) {
+                RunStateStore.clear(this)
+                stopSelfSafely()
+                return@postDelayed
+            }
+            runId = nextId
+            startScript(lastMode, connectOnly = lastConnectOnly)
+        }, REPEAT_DELAY_MS)
+    }
+
+    
     private fun shutDownHelpers() {
         watchdog?.shutdownNow()
         watchdog = null
@@ -322,6 +441,7 @@ class RunService : Service() {
             streamPool.shutdownNow()
         } catch (_: Exception) {
         }
+        streamPool = Executors.newCachedThreadPool()
     }
 
     private fun stopSelfSafely() {
@@ -345,29 +465,23 @@ class RunService : Service() {
         listener?.onLog(line)
     }
 
-    // --------------------------------------------------------------- log file
+    
 
     private fun resetLogFile() {
         try {
             logFile(this).writeText("")
         } catch (_: Exception) {
-            // A missing mirror costs us the out-of-process view, nothing else.
+            
         }
     }
 
-    /**
-     * Appends one line to the transcript mirror.
-     *
-     * The file is the *only* way an activity in another process can see the
-     * run, so a write failure is worth reporting once — but not worth aborting
-     * the run over, hence no exception escapes.
-     */
+    
     private fun appendToLogFile(line: String) {
         try {
             val file = logFile(this)
             if (file.length() > LOG_FILE_MAX_BYTES) {
-                // Trim the head rather than dropping everything: the tail is
-                // what a late-attaching reader actually wants.
+                
+                
                 val keep = file.readText(Charsets.UTF_8)
                 file.writeText(keep.substring(keep.length / 2))
             }
@@ -385,14 +499,14 @@ class RunService : Service() {
         }
         shutDownHelpers()
         setRunning(false)
-        // The service only goes away when the run is over or the user stopped
-        // it, so any persisted "running" state is now a lie. RunStateStore
-        // would catch it via the PID check anyway, but clearing here means the
-        // tile goes grey immediately instead of on the next shade pull.
+        
+        
+        
+        
         RunStateStore.clear(this)
     }
 
-    // ----------------------------------------------------------- notification
+    
 
     private fun startForegroundCompat() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

@@ -1,17 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Save icon for the 密码本 header.
 
-  The user asked for a "save icon" on the left of the two header buttons, so
-  the glyph is the standard Material *floppy disk* (the canonical "save"
-  symbol), not the download-to-tray arrow — the floppy is what reads as
-  "save" without a label.
-
-  Colour comes from brand_blue rather than a hard-coded hex so the two header
-  icons stay in step with the rest of the palette (and a re-brand stays a
-  one-line change in colors.xml). The vector is used directly as an
-  ImageButton's src, so no separate tint list is needed.
--->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

@@ -67,7 +67,7 @@
             android:name=".RunTileService"
             android:exported="true"
             android:icon="@drawable/ic_tile_oneshot"
-            android:label="扫描周围WiFi"
+            android:label="连接附近WiFi"
             android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter>
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
@@ -76,6 +76,34 @@
                 android:name="android.service.quicksettings.TOGGLEABLE_TILE"
                 android:value="true" />
         </service>
+
+        <!--
+          Long-press target for the tile above.
+
+          Android gives a quick-settings tile exactly one long-press behaviour:
+          open the activity the app declared with the QS_TILE_PREFERENCES
+          action. There is no TileService.getLongClickIntent() to override —
+          that is an Activity API, and overriding it in a TileService compiles
+          against nothing.
+
+          This activity does nothing but forward to MainActivity and finish.
+          Theme.NoDisplay means it never paints anything, so the user sees the
+          app opening directly rather than a blank intermediate screen.
+
+          exported=true is mandatory here: SystemUI lives in another process and
+          has to be able to start it.
+        -->
+        <activity
+            android:name=".TilePreferencesActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity>
 
     </application>
 

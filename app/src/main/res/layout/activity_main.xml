@@ -1,12 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Root layout.
 
-  Plain white ground. Earlier revisions set a photographic background here and
-  layered translucent white panels on top so the text stayed readable; that was
-  removed along with the image, so the panes below are now the only surfaces and
-  need no translucency of their own.
--->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -14,14 +7,7 @@
     android:orientation="vertical"
     android:background="#FFFFFF">
 
-    <!--
-      Tab strip: white background, brand-coloured *text*.
-
-      The colour goes on the label and the indicator, never on the bar itself —
-      a solid blue strip reads as a toolbar and competes with the content,
-      whereas blue-on-white keeps the accent where the user is actually looking
-      and leaves the page looking light.
-    -->
+    
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabLayout"
         android:layout_width="match_parent"
@@ -44,7 +30,7 @@
         android:layout_height="0dp"
         android:layout_weight="1">
 
-        <!-- ============================ Tab 1: 主页 ============================ -->
+        
         <LinearLayout
             android:id="@+id/pageHome"
             android:layout_width="match_parent"
@@ -52,36 +38,84 @@
             android:orientation="vertical"
             android:padding="12dp">
 
-            <!--
-              Terminal pane.
-
-              Layout notes, all of which exist to keep the ASCII banner on a
-              single grid:
-
-              1. `includeFontPadding=false` plus a fixed `lineSpacingExtra=0`
-                 and `lineSpacingMultiplier=1.0` removes the extra leading
-                 Android adds around each line by default. That padding differs
-                 per line depending on the tallest glyph in it, so lines with
-                 tall characters drifted apart from lines without.
-              2. `textSize` is 9sp and the pane scrolls horizontally. The banner
-                 is 53 columns and the longest log line is 83 characters, both
-                 wider than a phone in portrait; without horizontal scrolling
-                 the right edge would simply be clipped.
-              3. width is `wrap_content` inside the HorizontalScrollView so the
-                 text lays out at its natural width instead of being wrapped.
-              4. `fontFamily="monospace"` with no letterSpacing keeps every
-                 glyph in one cell. Characters the monospace font does not
-                 cover are substituted before they reach the view — see
-                 MainActivity.normalizeForMonospace().
-            -->
-            <TextView
+            
+            
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="终端输出"
-                android:textColor="#5F6368"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:paddingBottom="6dp" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="终端输出"
+                    android:textColor="#5F6368"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:gravity="center_vertical"
+                    android:text="重复模式"
+                    android:textColor="#5F6368"
+                    android:textSize="12sp" />
+
+                <CheckBox
+                    android:id="@+id/repeatCheck"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:paddingStart="4dp"
+                    android:paddingEnd="2dp"
+                    android:buttonTint="@color/brand_blue"
+                    android:gravity="center_vertical" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginEnd="6dp"
+                    android:text="解除占用"
+                    android:textColor="#5F6368"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/plan1Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="方案1"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="@color/brand_blue"
+                    android:textColor="#FFFFFF" />
+
+                <Button
+                    android:id="@+id/plan2Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="6dp"
+                    android:minWidth="0dp"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="方案2"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:backgroundTint="#E8EAED"
+                    android:textColor="#202124" />
+            </LinearLayout>
 
             <HorizontalScrollView
                 android:id="@+id/logHScroll"
@@ -115,9 +149,7 @@
                 </ScrollView>
             </HorizontalScrollView>
 
-            <!-- Two buttons side by side: start on the left, stop on the
-                 right. Both are enabled/disabled in lockstep with the script
-                 state so the wrong one can never be fired. -->
+            
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -150,7 +182,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- ======================= Tab 2: 密码本 ======================= -->
+        
         <LinearLayout
             android:id="@+id/pageFiles"
             android:layout_width="match_parent"
@@ -159,22 +191,7 @@
             android:padding="12dp"
             android:visibility="gone">
 
-            <!--
-              Header row: title on the left, the two icon actions pinned to the
-              right edge.
-
-              The actions live here rather than beside the 刷新 button at the
-              bottom because they act on the *password book as a whole* —
-              export it elsewhere, or wipe it — whereas 刷新 only re-reads it.
-              Putting the pair up top also keeps them out of thumb-reach of
-              the refresh button, so a mis-tap cannot turn "reload" into
-              "delete".
-
-              Both are borderless ImageButtons (`?attr/selectableItemBackgroundBorderless`)
-              so they read as icons, not as chrome, and each carries a
-              contentDescription because an icon-only control has no visible
-              label for a screen reader.
-            -->
+            
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -190,8 +207,7 @@
                     android:textSize="15sp"
                     android:textStyle="bold" />
 
-                <!-- Save: opens the system file picker, pre-named after the
-                     password book itself. -->
+                
                 <ImageButton
                     android:id="@+id/saveButton"
                     android:layout_width="40dp"
@@ -202,7 +218,7 @@
                     android:scaleType="fitCenter"
                     android:src="@drawable/ic_save" />
 
-                <!-- Delete: confirms first, because it is irreversible. -->
+                
                 <ImageButton
                     android:id="@+id/deleteButton"
                     android:layout_width="40dp"
@@ -215,13 +231,7 @@
                     android:src="@drawable/ic_delete" />
             </LinearLayout>
 
-            <!--
-              No permanent path header here on purpose. The empty state and the
-              error states each print the path themselves, so a standing
-              "路径: …" line above the pane would just repeat it — and it was
-              noise once real credentials were showing. The view is kept (set
-              to GONE in code) so the layout id stays stable.
-            -->
+            
             <TextView
                 android:id="@+id/filePathLabel"
                 android:layout_width="match_parent"
@@ -273,7 +283,7 @@
                 android:textColor="#202124" />
         </LinearLayout>
 
-        <!-- ======================= Tab 3: 关于 ======================= -->
+        
         <LinearLayout
             android:id="@+id/pageAbout"
             android:layout_width="match_parent"
@@ -282,15 +292,9 @@
             android:padding="12dp"
             android:visibility="gone">
 
-            <!--
-              The card is a plain Surface-like panel, not a MaterialCardView:
-              this screen is static, so a card would only add elevation and
-              rounded corners without earning either.
-            -->
+            
 
-            <!-- The avatar sits squarely in the middle of the screen width.
-                 It is a circular PNG on a transparent canvas, so no extra
-                 clipping is needed — the corners are already empty. -->
+            
             <ImageView
                 android:id="@+id/aboutAvatar"
                 android:layout_width="160dp"
@@ -301,7 +305,7 @@
                 android:scaleType="fitCenter"
                 android:src="@drawable/about_avatar" />
 
-            <!-- Name, centred under the avatar. -->
+            
             <TextView
                 android:id="@+id/aboutName"
                 android:layout_width="match_parent"
@@ -319,15 +323,7 @@
                 android:layout_marginTop="22dp"
                 android:background="#1A000000" />
 
-            <!--
-              Homepage link, left-aligned like the rest of the body copy.
-
-              The label and the link are *separate* TextViews inside one
-              left-aligned row. That is what makes "我的个人主页:" inert and
-              "github.com/tianlansedexiaoniu" the only tappable thing — put
-              them in a single TextView and the whole line, colon included,
-              would become the click target.
-            -->
+            
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

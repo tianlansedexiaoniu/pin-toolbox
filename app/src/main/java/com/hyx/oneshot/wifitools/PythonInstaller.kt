@@ -6,49 +6,27 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipInputStream
 
-/**
- * Handles the "assets -> app private storage" deployment of the Python runtime
- * and the bundled command-line tools.
- *
- * A CPython build cannot run straight out of an APK: the interpreter needs a real
- * filesystem for its stdlib, its extension modules and the executable itself.
- * The same is true of pixiewps / wpa_supplicant / iw — a binary stored under
- * assets/ cannot be exec'd in place on modern Android, so everything is copied
- * into filesDir with the executable bit set.
- *
- * Everything is ABI-aware. The APK carries both arm64-v8a and armeabi-v7a builds
- * of the interpreter and of every tool, and only the set matching the device is
- * unpacked.
- */
 class PythonInstaller(private val context: Context) {
 
     companion object {
-        /** Bumped whenever the asset payload changes shape. */
-        private const val BUILD_STAMP = "ose-python-build-2"
+        
+        private const val BUILD_STAMP = "ose-python-build-3"
 
-        /** Directory the bundled script lives in; also its CWD at runtime. */
+        
         fun scriptDir(context: Context): File = File(context.filesDir, "script")
 
-        /**
-         * CPython prefix root. The interpreter resolves its stdlib relative to
-         * this, expecting `<prefix>/lib/python3.11/`, so it must be a directory
-         * that *contains* lib/ rather than the stdlib directory itself.
-         */
+        
         fun pythonRoot(context: Context): File = File(context.filesDir, "python")
 
-        /** Where the interpreter binary + its .so files are copied. */
+        
         fun nativeDir(context: Context): File = File(context.filesDir, "lib")
 
-        /** Where pixiewps / wpa_supplicant / wpa_cli / iw are copied. */
+        
         fun binDir(context: Context): File = File(context.filesDir, "bin")
 
         fun stampFile(context: Context): File = File(context.filesDir, ".build_stamp")
 
-        /**
-         * The primary ABI this device should use, restricted to the two we ship.
-         * Falls back to arm64-v8a (our baseline) if the platform reports
-         * something unexpected.
-         */
+        
         fun deviceAbi(): String {
             val supported = Build.SUPPORTED_ABIS
             for (abi in supported) {
@@ -58,10 +36,7 @@ class PythonInstaller(private val context: Context) {
         }
     }
 
-    /**
-     * Returns true when the runtime was (re)deployed, false when the existing
-     * copy was already up to date.
-     */
+    
     fun ensureDeployed(onProgress: (String) -> Unit): Boolean {
         val stamp = stampFile(context)
         val pythonRoot = pythonRoot(context)
@@ -79,8 +54,8 @@ class PythonInstaller(private val context: Context) {
         val abi = deviceAbi()
         onProgress("[*] First launch: deploying embedded Python runtime for $abi…")
 
-        // Start from a clean slate so a partially-extracted older build cannot
-        // poison the new one.
+        
+        
         pythonRoot.deleteRecursively()
         scriptDir.deleteRecursively()
         binDir(context).deleteRecursively()
@@ -89,8 +64,8 @@ class PythonInstaller(private val context: Context) {
         nativeDir(context).mkdirs()
         binDir(context).mkdirs()
 
-        // assets/python holds the *contents* of lib/python3.11, so it is deployed
-        // one level deeper to satisfy CPython's <prefix>/lib/python3.11 layout.
+        
+        
         val stdlibDest = File(pythonRoot, "lib/python3.11")
         stdlibDest.mkdirs()
         copyAssetTree("python", stdlibDest, onProgress)
@@ -105,12 +80,12 @@ class PythonInstaller(private val context: Context) {
         return true
     }
 
-    /** Recursively copies one asset subtree into a destination directory. */
+    
     private fun copyAssetTree(assetRoot: String, destRoot: File, onProgress: (String) -> Unit) {
         val children = context.assets.list(assetRoot) ?: emptyArray()
 
         if (children.isEmpty()) {
-            // A leaf: it is a file, not a directory.
+            
             copyAssetFile(assetRoot, File(destRoot.parentFile, destRoot.name))
             return
         }
@@ -138,17 +113,7 @@ class PythonInstaller(private val context: Context) {
         }
     }
 
-    /**
-     * Extracts the interpreter, libpython and the extension modules for [abi].
-     *
-     * These ship inside assets/py/<abi>/python-nativelibs.zip rather than as
-     * plain asset files because a .so stored under assets/ cannot be dlopen()ed
-     * or exec'd in place on modern Android — it has to become a real file with
-     * the executable bit set inside the app's private storage first.
-     *
-     * lib-dynload entries land in [stdlibDest] so CPython finds them where the
-     * stdlib expects them; the interpreter and libpython go to filesDir/lib.
-     */
+    
     private fun deployNativeLibs(abi: String, stdlibDest: File, onProgress: (String) -> Unit) {
         val libDest = nativeDir(context)
         libDest.mkdirs()
@@ -168,8 +133,8 @@ class PythonInstaller(private val context: Context) {
                             val out = if (isDynload) File(dynloadDest, name) else File(libDest, name)
                             FileOutputStream(out).use { fos -> zip.copyTo(fos, 64 * 1024) }
                             out.setReadable(true, false)
-                            // The interpreter itself must be executable; the .so
-                            // files only need to be readable.
+                            
+                            
                             if (name == "python3.11") {
                                 out.setExecutable(true, false)
                             }
@@ -186,14 +151,7 @@ class PythonInstaller(private val context: Context) {
         }
     }
 
-    /**
-     * Extracts the command-line tools for [abi] into filesDir/bin and marks them
-     * executable.
-     *
-     * These are what the script's `which('pixiewps' | 'wpa_supplicant' | 'iw')`
-     * requirement check looks for, so the directory is prepended to PATH by
-     * ScriptRunner.
-     */
+    
     private fun deployTools(abi: String, onProgress: (String) -> Unit) {
         val dest = binDir(context)
         dest.mkdirs()

